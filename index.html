@@ -221,18 +221,44 @@
             renderTasks();
         }
 
-        function sendToNotion(id) {
+        async function sendToNotion(id) {
             const task = getTasks().find(t => t.id === id);
-            if (task) {
-                // タスク名をクリップボードにコピー
-                navigator.clipboard.writeText(task.text).then(() => {
-                    alert(`「${task.text}」\n\nをコピーしました！\n\nNotion を開いて、新しい行のタスク内容に貼り付けてください。`);
-                    // Notion のデータベースを新しいタブで開く
-                    window.open('https://www.notion.so/2065fb52a4aa8108818dd287ddfa2325?v=3155fb52a4aa80a0b8c2000c1b3d1aa1', '_blank');
-                }).catch(err => {
-                    alert('コピーに失敗しました。手動でタスクをコピーしてください。');
-                    console.error(err);
+            if (!task) return;
+
+            try {
+                // ボタンを無効化（連続クリック防止）
+                const button = event.target;
+                button.disabled = true;
+                button.textContent = '送信中...';
+
+                // バックエンド関数を呼ぶ
+                const response = await fetch('/api/addTask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        taskText: task.text,
+                    }),
                 });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(`✅ 「${task.text}」\n\nを Notion に送信しました！`);
+                    button.textContent = 'Notion';
+                    button.disabled = false;
+                } else {
+                    alert(`❌ エラー: ${data.error}\n\n${data.details?.message || ''}`);
+                    button.textContent = 'Notion';
+                    button.disabled = false;
+                }
+            } catch (err) {
+                alert('❌ エラーが発生しました。\n\n' + err.message);
+                const button = event.target;
+                button.textContent = 'Notion';
+                button.disabled = false;
+                console.error('Error:', err);
             }
         }
 
