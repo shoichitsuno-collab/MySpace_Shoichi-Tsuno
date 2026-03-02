@@ -134,6 +134,22 @@
             background: #ff5252;
         }
 
+        .notion-btn {
+            padding: 8px 12px;
+            background: #4cb3d4;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+            margin-right: 8px;
+        }
+
+        .notion-btn:hover {
+            background: #3a9ab5;
+        }
+
         .empty-message {
             text-align: center;
             color: #999;
@@ -205,6 +221,21 @@
             renderTasks();
         }
 
+        function sendToNotion(id) {
+            const task = getTasks().find(t => t.id === id);
+            if (task) {
+                // タスク名をクリップボードにコピー
+                navigator.clipboard.writeText(task.text).then(() => {
+                    alert(`「${task.text}」\n\nをコピーしました！\n\nNotion を開いて、新しい行のタスク内容に貼り付けてください。`);
+                    // Notion のデータベースを新しいタブで開く
+                    window.open('https://www.notion.so/2065fb52a4aa8108818dd287ddfa2325?v=3155fb52a4aa80a0b8c2000c1b3d1aa1', '_blank');
+                }).catch(err => {
+                    alert('コピーに失敗しました。手動でタスクをコピーしてください。');
+                    console.error(err);
+                });
+            }
+        }
+
         function renderTasks() {
             const taskList = document.getElementById('taskList');
             const tasks = getTasks();
@@ -222,6 +253,7 @@
                         onchange="toggleTask(${task.id})"
                     >
                     <span class="task-text">${escapeHtml(task.text)}</span>
+                    <button class="notion-btn" onclick="sendToNotion(${task.id})">Notion</button>
                     <button class="delete-btn" onclick="deleteTask(${task.id})">削除</button>
                 </li>
             `).join('');
