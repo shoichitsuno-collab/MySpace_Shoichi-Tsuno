@@ -11,7 +11,7 @@ SPREADSHEET_ID = "1hXY98qPVNWG_yTup9bj6hiLCVY3FYjO4hhFr_tEnep8"
 SHEET_NAME = "CCテスト"  # 書き込み先のシート名
 
 # --- Notion接続 ---
-notion = Client(auth=NOTION_API_KEY)
+notion = Client(auth=NOTION_API_KEY, timeout_ms=60000)  # タイムアウトを60秒に延長
 
 # --- Google Sheets接続 ---
 credentials_json = os.environ["GOOGLE_SHEETS_CREDENTIALS"]
