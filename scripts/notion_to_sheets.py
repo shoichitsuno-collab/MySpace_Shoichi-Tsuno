@@ -8,7 +8,7 @@ from google.oauth2.service_account import Credentials
 NOTION_API_KEY = os.environ["NOTION_API_KEY"]
 NOTION_DATABASE_ID = "2065fb52a4aa8192afaad9de6c633c4d"
 SPREADSHEET_ID = "1hXY98qPVNWG_yTup9bj6hiLCVY3FYjO4hhFr_tEnep8"
-SHEET_NAME = "Sheet1"  # 書き込み先のシート名
+SHEET_NAME = "CCテスト"  # 書き込み先のシート名
 
 # --- Notion接続 ---
 notion = Client(auth=NOTION_API_KEY)
