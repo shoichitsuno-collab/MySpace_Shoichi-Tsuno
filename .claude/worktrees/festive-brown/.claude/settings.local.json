@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /c/Users/津野翔一/tsu worktree list)",
+      "Bash(git -C /c/Users/津野翔一/tsu worktree remove .claude/worktrees/awesome-antonelli)",
+      "Bash(git -C /c/Users/津野翔一/tsu worktree remove .claude/worktrees/competent-elion)",
+      "Bash(git -C /c/Users/津野翔一/tsu worktree remove .claude/worktrees/mystifying-khorana)",
+      "Bash(git -C /c/Users/津野翔一/tsu worktree remove --force .claude/worktrees/awesome-antonelli)",
+      "Bash(git -C /c/Users/津野翔一/tsu worktree remove --force .claude/worktrees/competent-elion)",
+      "Bash(git -C /c/Users/津野翔一/tsu worktree remove --force .claude/worktrees/mystifying-khorana)",
+      "Bash(cmd.exe /c \"rmdir /s /q \"\"C:\\\\Users\\\\津野翔一\\\\tsu\\\\.claude\\\\worktrees\\\\awesome-antonelli\"\"\")",
+      "Bash(cmd.exe /c \"rmdir /s /q \"\"C:\\\\Users\\\\津野翔一\\\\tsu\\\\.claude\\\\worktrees\\\\competent-elion\"\"\")",
+      "Bash(cmd.exe /c \"rmdir /s /q \"\"C:\\\\Users\\\\津野翔一\\\\tsu\\\\.claude\\\\worktrees\\\\mystifying-khorana\"\"\")",
+      "Bash(git -C /c/Users/津野翔一/tsu worktree prune)",
+      "Bash(powershell.exe -Command \"Remove-Item -Path ''C:\\\\Users\\\\津野翔一\\\\tsu\\\\.claude\\\\worktrees\\\\awesome-antonelli'' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path ''C:\\\\Users\\\\津野翔一\\\\tsu\\\\.claude\\\\worktrees\\\\competent-elion'' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path ''C:\\\\Users\\\\津野翔一\\\\tsu\\\\.claude\\\\worktrees\\\\mystifying-khorana'' -Recurse -Force -ErrorAction SilentlyContinue; Write-Host ''Done''\")"
+    ]
+  }
+}

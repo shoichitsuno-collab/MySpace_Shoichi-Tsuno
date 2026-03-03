@@ -1,0 +1,28 @@
+name: Notion to Google Sheets
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"  # 毎週月曜日 日本時間9:00（UTC 0:00）
+  workflow_dispatch:      # 手動実行も可能
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 依存ライブラリをインストール
+        run: pip install -r requirements.txt
+
+      - name: スクリプトを実行
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+        run: python scripts/notion_to_sheets.py

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"C:/Users/津野翔一/tsu\" remote -v)",
+      "Bash(git -C \"C:/Users/津野翔一/tsu\" remote set-url origin https://github.com/shoichitsuno-collab/MySpace_Shoichi-Tsuno.git)",
+      "mcp__mcp-registry__search_mcp_registry",
+      "Bash(uvx --version)",
+      "Bash(pip --version)",
+      "Bash(pip show uv)",
+      "Bash(winget list uv)",
+      "Bash(where uv)",
+      "Bash(where uvx)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(curl -s http://localhost:8765/crm_er_diagram.html)",
+      "Bash(start crm_er_diagram.html)",
+      "WebFetch(domain:docs.google.com)"
+    ]
+  }
+}

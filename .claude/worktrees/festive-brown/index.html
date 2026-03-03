@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>毎日のタスク管理ツール</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .task-list {
+            list-style: none;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #f0f0f0;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            transition: all 0.3s;
+        }
+
+        .task-item:hover {
+            background: #f5f5f5;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-item.completed {
+            opacity: 0.7;
+        }
+
+        .task-item.completed .task-text {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+
+        .task-text {
+            flex: 1;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .delete-btn {
+            padding: 8px 12px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .delete-btn:hover {
+            background: #ff5252;
+        }
+
+        .notion-btn {
+            padding: 8px 12px;
+            background: #4cb3d4;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+            margin-right: 8px;
+        }
+
+        .notion-btn:hover {
+            background: #3a9ab5;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 タスク管理ツール</h1>
+
+        <div class="input-section">
+            <input
+                type="text"
+                id="taskInput"
+                placeholder="新しいタスクを入力してください..."
+                onkeypress="handleKeyPress(event)"
+            >
+            <button onclick="addTask()">追加</button>
+        </div>
+
+        <ul class="task-list" id="taskList">
+            <div class="empty-message">タスクはまだありません</div>
+        </ul>
+    </div>
+
+    <script>
+        // ページが読み込まれたときにタスクを復元
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTasks();
+        });
+
+        function addTask() {
+            const input = document.getElementById('taskInput');
+            const taskText = input.value.trim();
+
+            if (taskText === '') {
+                alert('タスクを入力してください');
+                return;
+            }
+
+            const tasks = getTasks();
+            tasks.push({
+                id: Date.now(),
+                text: taskText,
+                completed: false
+            });
+
+            saveTasks(tasks);
+            renderTasks();
+            input.value = '';
+            input.focus();
+        }
+
+        function toggleTask(id) {
+            const tasks = getTasks();
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasks(tasks);
+                renderTasks();
+            }
+        }
+
+        function deleteTask(id) {
+            const tasks = getTasks().filter(t => t.id !== id);
+            saveTasks(tasks);
+            renderTasks();
+        }
+
+        async function sendToNotion(id) {
+            const task = getTasks().find(t => t.id === id);
+            if (!task) return;
+
+            try {
+                // ボタンを無効化（連続クリック防止）
+                const button = event.target;
+                button.disabled = true;
+                button.textContent = '送信中...';
+
+                // バックエンド関数を呼ぶ
+                const response = await fetch('/api/addTask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        taskText: task.text,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(`✅ 「${task.text}」\n\nを Notion に送信しました！`);
+                    button.textContent = 'Notion';
+                    button.disabled = false;
+                } else {
+                    alert(`❌ エラー: ${data.error}\n\n${data.details?.message || ''}`);
+                    button.textContent = 'Notion';
+                    button.disabled = false;
+                }
+            } catch (err) {
+                alert('❌ エラーが発生しました。\n\n' + err.message);
+                const button = event.target;
+                button.textContent = 'Notion';
+                button.disabled = false;
+                console.error('Error:', err);
+            }
+        }
+
+        function renderTasks() {
+            const taskList = document.getElementById('taskList');
+            const tasks = getTasks();
+
+            if (tasks.length === 0) {
+                taskList.innerHTML = '<div class="empty-message">タスクはまだありません</div>';
+                return;
+            }
+
+            taskList.innerHTML = tasks.map(task => `
+                <li class="task-item ${task.completed ? 'completed' : ''}">
+                    <input
+                        type="checkbox"
+                        ${task.completed ? 'checked' : ''}
+                        onchange="toggleTask(${task.id})"
+                    >
+                    <span class="task-text">${escapeHtml(task.text)}</span>
+                    <button class="notion-btn" onclick="sendToNotion(${task.id})">Notion</button>
+                    <button class="delete-btn" onclick="deleteTask(${task.id})">削除</button>
+                </li>
+            `).join('');
+        }
+
+        function getTasks() {
+            const saved = localStorage.getItem('tasks');
+            return saved ? JSON.parse(saved) : [];
+        }
+
+        function saveTasks(tasks) {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        function loadTasks() {
+            renderTasks();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                addTask();
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
