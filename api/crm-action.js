@@ -69,18 +69,102 @@ async function queryCaseDB(companyPageId) {
   return data.results ?? [];
 }
 
+// ─────────────────────────────────────────────────────────────
+// Markdown → Notion ブロック変換
+// ─────────────────────────────────────────────────────────────
+
+/** インライン Markdown (**bold**, *italic*, `code`) を Notion rich_text 配列に変換 */
+function toRichText(text) {
+  if (!text) return [];
+  const parts = [];
+  const regex = /\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`/g;
+  let last = 0;
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) parts.push({ type: 'text', text: { content: text.slice(last, m.index) } });
+    if (m[1] !== undefined) parts.push({ type: 'text', text: { content: m[1] }, annotations: { bold: true } });
+    else if (m[2] !== undefined) parts.push({ type: 'text', text: { content: m[2] }, annotations: { italic: true } });
+    else if (m[3] !== undefined) parts.push({ type: 'text', text: { content: m[3] }, annotations: { code: true } });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ type: 'text', text: { content: text.slice(last) } });
+  return parts.length ? parts : [{ type: 'text', text: { content: text } }];
+}
+
+/** Markdown テキストを Notion ブロック配列に変換 */
+function markdownToNotionBlocks(markdown) {
+  const lines = markdown.split('\n');
+  const blocks = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+
+    // 見出し
+    const h1 = trimmed.match(/^# (.+)/);
+    const h2 = trimmed.match(/^## (.+)/);
+    const h3 = trimmed.match(/^### (.+)/);
+    if (h1) { blocks.push({ type: 'heading_1', heading_1: { rich_text: toRichText(h1[1]) } }); i++; continue; }
+    if (h2) { blocks.push({ type: 'heading_2', heading_2: { rich_text: toRichText(h2[1]) } }); i++; continue; }
+    if (h3) { blocks.push({ type: 'heading_3', heading_3: { rich_text: toRichText(h3[1]) } }); i++; continue; }
+
+    // 区切り線
+    if (trimmed.match(/^-{3,}$/) || trimmed.match(/^\*{3,}$/)) {
+      blocks.push({ type: 'divider', divider: {} }); i++; continue;
+    }
+
+    // テーブル
+    if (trimmed.startsWith('|')) {
+      const tableLines = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      // セパレータ行（|---|---|）を除外
+      const dataRows = tableLines.filter(l => !/^\|[\s|\-:]+\|$/.test(l));
+      if (dataRows.length > 0) {
+        const parseRow = (row) =>
+          row.split('|').slice(1, -1).map(cell => toRichText(cell.trim()));
+        const width = parseRow(dataRows[0]).length;
+        blocks.push({
+          type: 'table',
+          table: { table_width: width, has_column_header: true, has_row_header: false },
+          children: dataRows.map(row => ({
+            type: 'table_row',
+            table_row: { cells: parseRow(row) },
+          })),
+        });
+      }
+      continue;
+    }
+
+    // 箇条書き（インデントを無視してフラットに変換）
+    const bulletMatch = trimmed.match(/^[\-\*] (.+)/);
+    if (bulletMatch) {
+      blocks.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: toRichText(bulletMatch[1]) } });
+      i++; continue;
+    }
+
+    // 番号付きリスト
+    const numMatch = trimmed.match(/^\d+\. (.+)/);
+    if (numMatch) {
+      blocks.push({ type: 'numbered_list_item', numbered_list_item: { rich_text: toRichText(numMatch[1]) } });
+      i++; continue;
+    }
+
+    // 通常段落 / 空行
+    blocks.push({ type: 'paragraph', paragraph: { rich_text: trimmed ? toRichText(line) : [] } });
+    i++;
+  }
+
+  return blocks;
+}
+
 /** ドキュメントDB にページを作成し、ページIDを返す */
 async function createDocumentPage({ title, companyPageId, casePageId, minutes, tldvUrl }) {
-  // 議事録本文を Notion ブロック（paragraph）に変換
-  const allBlocks = minutes
-    .split('\n')
-    .map((line) => ({
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ type: 'text', text: { content: line } }],
-      },
-    }));
+  // 議事録本文を Notion ネイティブブロックに変換
+  const allBlocks = markdownToNotionBlocks(minutes);
 
   const body = {
     parent: { database_id: DOCUMENT_DB_ID },
