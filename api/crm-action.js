@@ -135,7 +135,7 @@ function getPageTitle(page) {
 // ─────────────────────────────────────────────────────────────
 // Claude API ヘルパー
 // ─────────────────────────────────────────────────────────────
-const anthropic = new Anthropic();
+const anthropic = new Anthropic({ maxRetries: 5 });
 
 /** トランスクリプトから顧客企業名を1つ抽出 */
 async function extractCompanyName(transcript) {
