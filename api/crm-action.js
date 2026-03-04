@@ -72,7 +72,7 @@ async function queryCaseDB(companyPageId) {
 /** ドキュメントDB にページを作成し、ページIDを返す */
 async function createDocumentPage({ title, companyPageId, casePageId, minutes, tldvUrl }) {
   // 議事録本文を Notion ブロック（paragraph）に変換
-  const paragraphBlocks = minutes
+  const allBlocks = minutes
     .split('\n')
     .map((line) => ({
       object: 'block',
@@ -80,8 +80,7 @@ async function createDocumentPage({ title, companyPageId, casePageId, minutes, t
       paragraph: {
         rich_text: [{ type: 'text', text: { content: line } }],
       },
-    }))
-    .slice(0, 100); // Notion API は一度に 100 ブロックまで
+    }));
 
   const body = {
     parent: { database_id: DOCUMENT_DB_ID },
@@ -102,7 +101,7 @@ async function createDocumentPage({ title, companyPageId, casePageId, minutes, t
         MTG録画URL: { url: tldvUrl },
       }),
     },
-    children: paragraphBlocks,
+    children: allBlocks.slice(0, 100), // Notion API は一度に 100 ブロックまで
   };
 
   const res = await fetch('https://api.notion.com/v1/pages', {
@@ -116,7 +115,28 @@ async function createDocumentPage({ title, companyPageId, casePageId, minutes, t
   });
   const data = await res.json();
   if (!res.ok) throw new Error(`Notion ページ作成エラー: ${data.message}`);
-  return data.id;
+
+  // 100ブロックを超える場合は append_block_children で追加
+  const pageId = data.id;
+  for (let i = 100; i < allBlocks.length; i += 100) {
+    const chunk = allBlocks.slice(i, i + 100);
+    const appendRes = await fetch(`https://api.notion.com/v1/blocks/${pageId}/children`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
+        'Notion-Version': NOTION_VERSION,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ children: chunk }),
+    });
+    if (!appendRes.ok) {
+      const err = await appendRes.json();
+      console.error('Notion ブロック追加エラー:', err);
+      break;
+    }
+  }
+
+  return pageId;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -181,7 +201,7 @@ async function generateMinutes(transcript, companyName, caseName) {
 
   const msg = await anthropic.messages.create({
     model: 'claude-opus-4-6',
-    max_tokens: 2048,
+    max_tokens: 8192,
     system: systemPrompt,
     messages: [
       {
