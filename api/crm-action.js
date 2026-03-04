@@ -8,6 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { kv } from '@vercel/kv';
 import { randomUUID } from 'crypto';
+import { waitUntil } from '@vercel/functions';
 
 export const config = { maxDuration: 60 };
 
@@ -411,42 +412,44 @@ export default async function handler(req, res) {
     // Slack にすぐ 200 を返してモーダルを閉じる
     res.status(200).json({});
 
-    // 以降は非同期処理
-    try {
-      // トランスクリプトを Vercel KV に保存（TTL: 24時間）
-      const sessionId = randomUUID();
-      await kv.set(sessionId, transcript, { ex: 86400 });
+    // waitUntil でレスポンス後も非同期処理を継続
+    waitUntil((async () => {
+      try {
+        // トランスクリプトを Vercel KV に保存（TTL: 24時間）
+        const sessionId = randomUUID();
+        await kv.set(sessionId, transcript, { ex: 86400 });
 
-      // 企業名を抽出
-      const companyName = await extractCompanyName(transcript);
+        // 企業名を抽出
+        const companyName = await extractCompanyName(transcript);
 
-      // 企業DB を検索
-      const companies = await queryCompanyDB(companyName);
+        // 企業DB を検索
+        const companies = await queryCompanyDB(companyName);
 
-      if (!meta.channelId) {
-        console.error('channelId が private_metadata にありません');
-        return;
-      }
+        if (!meta.channelId) {
+          console.error('channelId が private_metadata にありません');
+          return;
+        }
 
-      if (companies.length === 0) {
+        if (companies.length === 0) {
+          await postMessageToChannel(
+            meta.channelId,
+            `🔍 企業「${companyName}」は Notion 企業DB に見つかりませんでした。\n処理を終了します。`
+          );
+          return;
+        }
+
+        // 企業選択ボタンをチャンネルに送信
         await postMessageToChannel(
           meta.channelId,
-          `🔍 企業「${companyName}」は Notion 企業DB に見つかりませんでした。\n処理を終了します。`
+          buildCompanyBlocks(companies, sessionId, meta.channelId)
         );
-        return;
+      } catch (error) {
+        console.error('view_submission 処理エラー:', error);
+        if (meta.channelId) {
+          await postMessageToChannel(meta.channelId, `❌ エラーが発生しました: ${error.message}`);
+        }
       }
-
-      // 企業選択ボタンをチャンネルに送信
-      await postMessageToChannel(
-        meta.channelId,
-        buildCompanyBlocks(companies, sessionId, meta.channelId)
-      );
-    } catch (error) {
-      console.error('view_submission 処理エラー:', error);
-      if (meta.channelId) {
-        await postMessageToChannel(meta.channelId, `❌ エラーが発生しました: ${error.message}`);
-      }
-    }
+    })());
     return;
   }
 
