@@ -67,18 +67,11 @@ export default async function handler(req, res) {
   try {
     const payload = req.body;
 
-    // ★ デバッグ: Notionが送ってくるペイロードの全体を出力
-    console.log('=== Notion webhook payload ===');
-    console.log(JSON.stringify(payload, null, 2));
-
     // Notionオートメーションのペイロードは data 以下にページオブジェクトが入る場合と
     // 直接ページオブジェクトが来る場合がある
     const page = payload.data ?? payload;
     const pageId = page.id;
     const properties = page.properties;
-
-    console.log('pageId:', pageId);
-    console.log('properties keys:', properties ? Object.keys(properties) : 'none');
 
     if (!pageId || !properties) {
       return res.status(400).json({ error: 'Notionのペイロード形式が不正です', payload });
@@ -86,7 +79,6 @@ export default async function handler(req, res) {
 
     // ① 「要約前」プロパティの取得
     const sourceText = extractPlainText(properties['要約前']);
-    console.log('要約前 text:', sourceText);
 
     if (!sourceText.trim()) {
       return res.status(400).json({ error: '「要約前」プロパティが空です' });
