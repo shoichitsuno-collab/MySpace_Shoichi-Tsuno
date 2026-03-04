@@ -129,11 +129,15 @@ function markdownToNotionBlocks(markdown) {
         const width = parseRow(dataRows[0]).length;
         blocks.push({
           type: 'table',
-          table: { table_width: width, has_column_header: true, has_row_header: false },
-          children: dataRows.map(row => ({
-            type: 'table_row',
-            table_row: { cells: parseRow(row) },
-          })),
+          table: {
+            table_width: width,
+            has_column_header: true,
+            has_row_header: false,
+            children: dataRows.map(row => ({
+              type: 'table_row',
+              table_row: { cells: parseRow(row) },
+            })),
+          },
         });
       }
       continue;
