@@ -470,112 +470,115 @@ export default async function handler(req, res) {
     // 即時 200 を返す（Slack の 3 秒制限対応）
     res.status(200).end();
 
-    // ─── スキップ ─────────────────────────────────────────────
-    if (state.step === 'skip') {
-      await postToSlack(responseUrl, `⏭️ ${state.reason ?? 'スキップしました。'}\n処理を終了します。`);
-      return;
-    }
+    // waitUntil でレスポンス後も非同期処理を継続
+    waitUntil((async () => {
+      // ─── スキップ ─────────────────────────────────────────────
+      if (state.step === 'skip') {
+        await postToSlack(responseUrl, `⏭️ ${state.reason ?? 'スキップしました。'}\n処理を終了します。`);
+        return;
+      }
 
-    // ─── 企業選択後 → 案件検索 ───────────────────────────────
-    if (state.step === 'company_selected') {
-      try {
-        const cases = await queryCaseDB(state.companyPageId);
+      // ─── 企業選択後 → 案件検索 ───────────────────────────────
+      if (state.step === 'company_selected') {
+        try {
+          const cases = await queryCaseDB(state.companyPageId);
 
-        if (cases.length === 0) {
+          if (cases.length === 0) {
+            await postToSlack(
+              responseUrl,
+              `✅ 企業: *${state.companyName}*\n\n🔍 案件が見つかりませんでした。\n処理を終了します。`
+            );
+            return;
+          }
+
+          await postToSlack(responseUrl, buildCaseBlocks(cases, state));
+        } catch (error) {
+          console.error('案件検索エラー:', error);
+          await postToSlack(responseUrl, `❌ 案件の検索中にエラーが発生しました: ${error.message}`);
+        }
+        return;
+      }
+
+      // ─── 案件選択後 → 議事録生成 ─────────────────────────────
+      if (state.step === 'case_selected') {
+        try {
           await postToSlack(
             responseUrl,
-            `✅ 企業: *${state.companyName}*\n\n🔍 案件が見つかりませんでした。\n処理を終了します。`
+            `✅ 企業: *${state.companyName}*\n📁 案件: *${state.caseName}*\n\n⏳ 議事録を生成中です... しばらくお待ちください。`
           );
-          return;
-        }
 
-        await postToSlack(responseUrl, buildCaseBlocks(cases, state));
-      } catch (error) {
-        console.error('案件検索エラー:', error);
-        await postToSlack(responseUrl, `❌ 案件の検索中にエラーが発生しました: ${error.message}`);
-      }
-      return;
-    }
+          // KV からトランスクリプトを取得
+          const transcript = await kv.get(state.sessionId);
+          if (!transcript) {
+            await postToSlack(responseUrl, '❌ セッションが期限切れです。最初からやり直してください。');
+            return;
+          }
 
-    // ─── 案件選択後 → 議事録生成 ─────────────────────────────
-    if (state.step === 'case_selected') {
-      try {
-        await postToSlack(
-          responseUrl,
-          `✅ 企業: *${state.companyName}*\n📁 案件: *${state.caseName}*\n\n⏳ 議事録を生成中です... しばらくお待ちください。`
-        );
+          // Claude で議事録生成
+          const minutes = await generateMinutes(transcript, state.companyName, state.caseName);
 
-        // KV からトランスクリプトを取得
-        const transcript = await kv.get(state.sessionId);
-        if (!transcript) {
-          await postToSlack(responseUrl, '❌ セッションが期限切れです。最初からやり直してください。');
-          return;
-        }
+          // 議事録を KV に保存（TTL: 1 時間）
+          const minutesSessionId = randomUUID();
+          await kv.set(minutesSessionId, minutes, { ex: 3600 });
 
-        // Claude で議事録生成
-        const minutes = await generateMinutes(transcript, state.companyName, state.caseName);
+          // プレビュー（冒頭 500 文字）
+          const minutesPreview = minutes.slice(0, 500) + (minutes.length > 500 ? '...' : '');
 
-        // 議事録を KV に保存（TTL: 1 時間）
-        const minutesSessionId = randomUUID();
-        await kv.set(minutesSessionId, minutes, { ex: 3600 });
-
-        // プレビュー（冒頭 500 文字）
-        const minutesPreview = minutes.slice(0, 500) + (minutes.length > 500 ? '...' : '');
-
-        await postToSlack(
-          responseUrl,
-          buildMinutesPreviewBlocks(minutesPreview, { ...state, minutesSessionId })
-        );
-      } catch (error) {
-        console.error('議事録生成エラー:', error);
-        await postToSlack(responseUrl, `❌ 議事録の生成中にエラーが発生しました: ${error.message}`);
-      }
-      return;
-    }
-
-    // ─── 議事録 OK → Notion 登録 ─────────────────────────────
-    if (state.step === 'minutes_confirmed') {
-      try {
-        await postToSlack(responseUrl, '⏳ Notion に議事録を登録中...');
-
-        // KV から議事録を取得
-        const minutes = await kv.get(state.minutesSessionId);
-        if (!minutes) {
           await postToSlack(
             responseUrl,
-            '❌ 議事録データが期限切れです。最初からやり直してください。'
+            buildMinutesPreviewBlocks(minutesPreview, { ...state, minutesSessionId })
           );
-          return;
+        } catch (error) {
+          console.error('議事録生成エラー:', error);
+          await postToSlack(responseUrl, `❌ 議事録の生成中にエラーが発生しました: ${error.message}`);
         }
-
-        // タイトル: 議事録の1行目から取得（例: "# 20260304_建設ドットウェブ商談"）
-        const firstLine = minutes.split('\n')[0].replace(/^#+\s*/, '').trim();
-        const title = firstLine || `議事録_${new Date().toISOString().slice(0, 10)}`;
-
-        // Notion ドキュメントDB にページ作成
-        const pageId = await createDocumentPage({
-          title,
-          companyPageId: state.companyPageId,
-          casePageId: state.casePageId,
-          minutes,
-          tldvUrl: state.tldvUrl ?? '',
-        });
-
-        const pageUrl = `https://notion.so/${pageId.replace(/-/g, '')}`;
-
-        await postToSlack(
-          responseUrl,
-          `✅ *Notion に議事録を登録しました！*\n\n📄 *${title}*\n🔗 ${pageUrl}`
-        );
-      } catch (error) {
-        console.error('Notion 登録エラー:', error);
-        await postToSlack(responseUrl, `❌ Notion への登録中にエラーが発生しました: ${error.message}`);
+        return;
       }
-      return;
-    }
 
-    // 未知のステップ
-    console.warn('Unknown step:', state.step);
+      // ─── 議事録 OK → Notion 登録 ─────────────────────────────
+      if (state.step === 'minutes_confirmed') {
+        try {
+          await postToSlack(responseUrl, '⏳ Notion に議事録を登録中...');
+
+          // KV から議事録を取得
+          const minutes = await kv.get(state.minutesSessionId);
+          if (!minutes) {
+            await postToSlack(
+              responseUrl,
+              '❌ 議事録データが期限切れです。最初からやり直してください。'
+            );
+            return;
+          }
+
+          // タイトル: 議事録の1行目から取得（例: "# 20260304_建設ドットウェブ商談"）
+          const firstLine = minutes.split('\n')[0].replace(/^#+\s*/, '').trim();
+          const title = firstLine || `議事録_${new Date().toISOString().slice(0, 10)}`;
+
+          // Notion ドキュメントDB にページ作成
+          const pageId = await createDocumentPage({
+            title,
+            companyPageId: state.companyPageId,
+            casePageId: state.casePageId,
+            minutes,
+            tldvUrl: state.tldvUrl ?? '',
+          });
+
+          const pageUrl = `https://notion.so/${pageId.replace(/-/g, '')}`;
+
+          await postToSlack(
+            responseUrl,
+            `✅ *Notion に議事録を登録しました！*\n\n📄 *${title}*\n🔗 ${pageUrl}`
+          );
+        } catch (error) {
+          console.error('Notion 登録エラー:', error);
+          await postToSlack(responseUrl, `❌ Notion への登録中にエラーが発生しました: ${error.message}`);
+        }
+        return;
+      }
+
+      // 未知のステップ
+      console.warn('Unknown step:', state.step);
+    })());
     return;
   }
 
