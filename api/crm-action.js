@@ -15,9 +15,9 @@ export const config = { maxDuration: 60 };
 // ─────────────────────────────────────────────────────────────
 // Notion DB ID 定数（crm.md より）
 // ─────────────────────────────────────────────────────────────
-const COMPANY_DB_ID  = '2065fb52-a4aa-8154-a35c-000b6bae1c82'; // 企業DB
-const CASE_DB_ID     = '2065fb52-a4aa-81a4-bdab-000b3073385d'; // 案件DB
-const DOCUMENT_DB_ID = '2065fb52-a4aa-8111-b34d-000b6669b516'; // ドキュメントDB
+const COMPANY_DB_ID  = '2065fb52-a4aa-810b-ae88-d9c780f1b177'; // 企業DB
+const CASE_DB_ID     = '2065fb52-a4aa-8105-983a-ecb644a8b678'; // 案件DB
+const DOCUMENT_DB_ID = '2065fb52-a4aa-81f9-834a-c46b39b18fcd'; // ドキュメントDB
 
 const NOTION_VERSION = '2022-06-28';
 
